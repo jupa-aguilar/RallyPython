@@ -1,163 +1,175 @@
 import ssl
 from pyral import Rally
 
-# Deshabilitar verificación SSL (solo para pruebas)
+# Disable SSL verification (for testing purposes only)
 ssl._create_default_https_context = ssl._create_unverified_context
 
-# Configuración de conexión a Rally
+# Interactive input for the script configuration
+API_KEY = input("Enter your Rally API Key: ")
+TICKET_PARENT_ID = input("Enter the Parent Ticket ID: ")
+
+# Ask for QA Owner Email
+QA_OWNER_EMAIL = input("Enter the QA Owner Email (leave blank if not applicable): ").strip()
+
+# Convert input to boolean
+create_l1_deploy_ticket = input("Create L1 DEPLOY ticket? (yes/no): ").strip().lower() == 'yes'
+
+# Rally connection configuration
 RALLY_SERVER = 'rally1.rallydev.com'
-API_KEY = '_j4Iy2htQuCutXrGneZPit5tgyaeYkaDtRsLor7Rqgs'
 WORKSPACE = 'Main'
 PROJECT_NAME = 'Customer-Support-Tech'
 
-# Constantes para configuración del script
-QA_OWNER_EMAIL = 'AArias@ancestry.com'
-# QA_OWNER_EMAIL = 'slevita.contractor@ancestry.com'
-# QA_OWNER_EMAIL = 'mpatel@ancestry.com'
-
-TICKET_PADRE_ID = 'US286169'
-
-# Función para obtener una referencia de Rally
-def obtener_referencia(rally, tipo, fetch, query):
-    response = rally.get(tipo, fetch=fetch, query=query)
+# Function to get a Rally reference
+def get_reference(rally, type, fetch, query):
+    response = rally.get(type, fetch=fetch, query=query)
     for item in response:
         return item
     return None
 
-# Función para crear una etiqueta
-def crear_etiqueta(rally, etiqueta):
-    tag_data = {'Name': etiqueta}
+# Function to create a tag
+def create_tag(rally, tag_name):
+    tag_data = {'Name': tag_name}
     tag = rally.put('Tag', tag_data)
     return tag
 
-# Autenticación en Rally
+# Authentication in Rally
 try:
     rally = Rally(server=RALLY_SERVER, apikey=API_KEY, workspace=WORKSPACE)
-    print("Conectado a Rally exitosamente.")
+    print("Successfully connected to Rally.")
 except Exception as e:
-    print(f"Error al conectar a Rally: {e}")
+    print(f"Error connecting to Rally with the provided API Key: {e}")
     exit(1)
 
-# Obtener referencia del Proyecto
-project = obtener_referencia(rally, 'Project', "ObjectID,Name", f'Name = "{PROJECT_NAME}"')
+# Get Project reference
+project = get_reference(rally, 'Project', "ObjectID,Name", f'Name = "{PROJECT_NAME}"')
 if not project:
-    print(f"Error: No se encontró el proyecto {PROJECT_NAME}")
+    print(f"Error: Project {PROJECT_NAME} not found")
     exit(1)
 project_ref = project._ref
 print(f"Project Ref: {project_ref}")
 
-# Obtener referencia del Ticket Padre
-ticket_padre = obtener_referencia(rally, 'HierarchicalRequirement', "ObjectID,Name,PlanEstimate,Release,Iteration,Owner,Description", f'FormattedID = "{TICKET_PADRE_ID}"')
-if not ticket_padre:
-    print(f"Error: No se encontró el ticket padre con ID {TICKET_PADRE_ID}")
-    exit(1)
-ticket_padre_ref = ticket_padre._ref
-ticket_padre_name = ticket_padre.Name
-plan_estimate_padre = ticket_padre.PlanEstimate
-release_ref = ticket_padre.Release._ref if ticket_padre.Release else None
-iteration_ref = ticket_padre.Iteration._ref if ticket_padre.Iteration else None
-owner_ref = ticket_padre.Owner._ref if ticket_padre.Owner else None
-description_padre = ticket_padre.Description
-
-# Manejar la posible ausencia del campo 'c_Color'
-color_padre = getattr(ticket_padre, 'c_Color', None)
-
-print(f"Ticket Padre Ref: {ticket_padre_ref}, Name: {ticket_padre_name}")
-
-# Obtener referencia del Usuario de QA
-try:
-    qa_user_response = rally.get('User', fetch="ObjectID,UserName,EmailAddress", query=f'EmailAddress = "{QA_OWNER_EMAIL}"')
-    qa_user = next(qa_user_response)
-    qa_user_ref = qa_user._ref
-    print(f"QA Owner Ref: {qa_user_ref}, UserName: {qa_user.UserName}")
-except StopIteration:
-    print(f"Error: No se encontró el usuario con EmailAddress = {QA_OWNER_EMAIL}")
-    exit(1)
-except Exception as e:
-    print(f"Error al obtener el User ID de QA: {e}")
+# Validate Parent Ticket ID
+parent_ticket = get_reference(rally, 'HierarchicalRequirement', "ObjectID,Name,PlanEstimate,Release,Iteration,Owner,Description", f'FormattedID = "{TICKET_PARENT_ID}"')
+if not parent_ticket:
+    print(f"Error: Parent ticket with ID {TICKET_PARENT_ID} not found")
     exit(1)
 
-# Crear etiqueta 'L1 Deploy'
-try:
-    tag = crear_etiqueta(rally, 'L1 Deploy')
-    tag_ref = tag._ref
-    print(f"Etiqueta 'L1 Deploy' creada con Ref: {tag_ref}")
-except Exception as e:
-    print(f"Error al crear la etiqueta 'L1 Deploy': {e}")
-    exit(1)
+# Handle possible absence of the 'c_Color' field
+color_parent = getattr(parent_ticket, 'c_Color', None)
 
-# Crear los tres tickets hijos
+parent_ticket_ref = parent_ticket._ref
+parent_ticket_name = parent_ticket.Name
+plan_estimate_parent = parent_ticket.PlanEstimate
+release_ref = parent_ticket.Release._ref if parent_ticket.Release else None
+iteration_ref = parent_ticket.Iteration._ref if parent_ticket.Iteration else None
+owner_ref = parent_ticket.Owner._ref if parent_ticket.Owner else None
+description_parent = parent_ticket.Description
+
+print(f"Parent Ticket Ref: {parent_ticket_ref}, Name: {parent_ticket_name}")
+
+# Validate QA Owner Email (if provided)
+qa_user_ref = None 
+if QA_OWNER_EMAIL:
+    try:
+        qa_user_response = rally.get('User', fetch="ObjectID,UserName,EmailAddress", query=f'EmailAddress = "{QA_OWNER_EMAIL}"')
+        qa_user = next(qa_user_response)
+        qa_user_ref = qa_user._ref
+        print(f"QA Owner Ref: {qa_user_ref}, UserName: {qa_user.UserName}")
+    except StopIteration:
+        print(f"Error: User with EmailAddress = {QA_OWNER_EMAIL} not found")
+        exit(1)
+    except Exception as e:
+        print(f"Error obtaining QA User ID: {e}")
+        exit(1)
+
+# Proceed only if both the Parent Ticket ID and QA Owner Email (if provided) are valid# Create 'L1 Deploy' tag only if the L1 DEPLOY ticket is to be created
+if create_l1_deploy_ticket:
+    try:
+        tag = create_tag(rally, 'L1 Deploy')
+        tag_ref = tag._ref
+        print(f"'L1 Deploy' tag created with Ref: {tag_ref}")
+    except Exception as e:
+        print(f"Error creating 'L1 Deploy' tag: {e}")
+        exit(1)
+
+# Create the three child tickets
 child_tickets = {
     'DEV': None,
     'QA': None,
     'L1 DEPLOY': None
 }
 
-# Ajustar el PlanEstimate del hijo DEV si el del padre no está configurado
-plan_estimate_dev = plan_estimate_padre if plan_estimate_padre is not None else None
+# Adjust PlanEstimate for the DEV child if the parent's is not set
+plan_estimate_dev = plan_estimate_parent if plan_estimate_parent is not None else None
 
+# Prepare ticket data
 ticket_data = {
     'DEV': {
         'PlanEstimate': plan_estimate_dev,
         'Release': release_ref,
         'Iteration': iteration_ref,
         'Owner': owner_ref,
-        'c_Color': color_padre,
-        'Description': description_padre
+        'c_Color': color_parent,
+        'Description': description_parent
     },
     'QA': {
         'Release': release_ref,
         'Iteration': iteration_ref,
-        'Owner': qa_user_ref,
-        'c_Color': color_padre,
-        'Description': description_padre
+        'Owner': qa_user_ref if qa_user_ref else None,
+        'c_Color': color_parent,
+        'Description': description_parent
     },
     'L1 DEPLOY': {
         'PlanEstimate': 1,
         'Owner': owner_ref,
-        'Tags': [{"_ref": tag_ref}],
-        'c_Color': color_padre,
+        'Tags': [{"_ref": tag_ref}] if create_l1_deploy_ticket else None,
+        'c_Color': color_parent,
         'Description': "PRE-DEPLOYMENT STEPS\n•\n\nPOST-DEPLOYMENT STEPS\n•"
     }
 }
 
-def crear_ticket_hijo(tipo, nombre, ticket_padre_ref, datos_adicionales):
+def create_child_ticket(type, name, parent_ticket_ref, additional_data):
     ticket_data = {
-        'Name': nombre,
+        'Name': name,
         'Project': project_ref,
-        'Parent': ticket_padre_ref
+        'Parent': parent_ticket_ref
     }
-    ticket_data.update(datos_adicionales)
-    if 'c_Color' in ticket_data and ticket_data['c_Color'] is None:
+    ticket_data.update(additional_data)
+    if'c_Color'in ticket_data and ticket_data['c_Color'] is None:
         del ticket_data['c_Color']
+    if'Tags'in ticket_data and ticket_data['Tags'] is None:
+        del ticket_data['Tags']
+    if'Owner'in ticket_data and ticket_data['Owner'] is None:
+        del ticket_data['Owner']
     return rally.put('HierarchicalRequirement', ticket_data)
 
-# Crear el ticket DEV
+# Create the DEV ticket
 try:
-    dev_ticket = crear_ticket_hijo('DEV', f"[DEV] {ticket_padre_name}", ticket_padre_ref, ticket_data['DEV'])
+    dev_ticket = create_child_ticket('DEV', f"[DEV] {parent_ticket_name}", parent_ticket_ref, ticket_data['DEV'])
     child_tickets['DEV'] = dev_ticket
-    print(f"Ticket hijo 'DEV' creado con el ID: {dev_ticket.ObjectID}")
+    print(f"Child ticket 'DEV' created with ID: {dev_ticket.ObjectID}")
 except Exception as e:
-    print(f"Error al crear el ticket hijo 'DEV': {e}")
+    print(f"Error creating child ticket 'DEV': {e}")
 
-# Crear el ticket QA con dependencia del ticket DEV
+# Create the QA ticket with dependency on the DEV ticket
 try:
     if child_tickets['DEV']:
         qa_ticket_data = ticket_data['QA']
         qa_ticket_data['Predecessors'] = [child_tickets['DEV']._ref]
-        qa_ticket = crear_ticket_hijo('QA', f"[QA] {ticket_padre_name}", ticket_padre_ref, qa_ticket_data)
+        qa_ticket = create_child_ticket('QA', f"[QA] {parent_ticket_name}", parent_ticket_ref, qa_ticket_data)
         child_tickets['QA'] = qa_ticket
-        print(f"Ticket hijo 'QA' creado con el ID: {qa_ticket.ObjectID}")
+        print(f"Child ticket 'QA' created with ID: {qa_ticket.ObjectID}")
 except Exception as e:
-    print(f"Error al crear el ticket hijo 'QA': {e}")
+    print(f"Error creating child ticket 'QA': {e}")
 
-# Crear el ticket L1 DEPLOY con dependencia del ticket QA
-try:
-    if child_tickets['QA']:
-        l1_deploy_ticket_data = ticket_data['L1 DEPLOY']
-        l1_deploy_ticket_data['Predecessors'] = [child_tickets['QA']._ref]
-        l1_deploy_ticket = crear_ticket_hijo('L1 DEPLOY', f"[L1 DEPLOY] {ticket_padre_name}", ticket_padre_ref, l1_deploy_ticket_data)
-        child_tickets['L1 DEPLOY'] = l1_deploy_ticket
-        print(f"Ticket hijo 'L1 DEPLOY' creado con el ID: {l1_deploy_ticket.ObjectID}")
-except Exception as e:
-    print(f"Error al crear el ticket hijo 'L1 DEPLOY': {e}")
+# Create the L1 DEPLOY ticket with dependency on the QA ticket if the flag is set
+if create_l1_deploy_ticket:
+    try:
+        if child_tickets['QA']:
+            l1_deploy_ticket_data = ticket_data['L1 DEPLOY']
+            l1_deploy_ticket_data['Predecessors'] = [child_tickets['QA']._ref]
+            l1_deploy_ticket = create_child_ticket('L1 DEPLOY', f"[L1 DEPLOY] {parent_ticket_name}", parent_ticket_ref, l1_deploy_ticket_data)
+            child_tickets['L1 DEPLOY'] = l1_deploy_ticket
+            print(f"Child ticket 'L1 DEPLOY' created with ID: {l1_deploy_ticket.ObjectID}")
+    except Exception as e:
+        print(f"Error creating child ticket 'L1 DEPLOY': {e}")

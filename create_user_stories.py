@@ -28,6 +28,29 @@ def obtener_proximo_lunes():
     proximo_lunes = hoy + timedelta(days=dias_para_lunes)
     return proximo_lunes
 
+def obtener_dia_especifico(dia_solicitado):
+    dias_semana = {
+        "lunes": 0,
+        "martes": 1,
+        "miércoles": 2,
+        "jueves": 3,
+        "viernes": 4,
+        "sábado": 5,
+        "domingo": 6
+    }
+
+    hoy = datetime.now()
+    dia_solicitado = dia_solicitado.lower()
+
+    if dia_solicitado not in dias_semana:
+        raise ValueError("El día solicitado no es válido. Usa: lunes, martes, miércoles, jueves, viernes, sábado o domingo.")
+    
+    dia_actual = hoy.weekday()
+    dias_para_dia_solicitado = (dias_semana[dia_solicitado] - dia_actual + 7) % 7
+    dia_especifico = hoy + timedelta(days=dias_para_dia_solicitado)
+
+    return dia_especifico
+
 # Función para obtener los detalles de los tickets desde Rally
 def obtener_detalles_tickets(rally, ticket_ids):
     detalles_tickets = []
@@ -42,7 +65,9 @@ def obtener_detalles_tickets(rally, ticket_ids):
     return detalles_tickets
 
 # Fecha configurable
-fecha = obtener_proximo_lunes()
+# fecha = obtener_proximo_jueves()
+# obtener el próximo miercoles
+fecha = obtener_dia_especifico("miércoles")
 fecha_str = fecha.strftime("%m-%d-%Y")
 
 # Función para obtener el nombre de la Release y la Iteration
@@ -122,7 +147,7 @@ except Exception as e:
     exit(1)
 
 # Lista de IDs de tickets
-ticket_ids = ['US296290', 'US299667', 'US300532']  # Actualiza esta lista con los IDs reales
+ticket_ids = ['US282371', 'US290012', 'US297547', 'US303552', 'US306275']  # Actualiza esta lista con los IDs reales
 
 # Obtener los detalles de los tickets
 detalles_tickets = obtener_detalles_tickets(rally, ticket_ids)
