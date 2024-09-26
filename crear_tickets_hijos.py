@@ -8,8 +8,29 @@ ssl._create_default_https_context = ssl._create_unverified_context
 API_KEY = input("Enter your Rally API Key: ")
 TICKET_PARENT_ID = input("Enter the Parent Ticket ID: ")
 
-# Ask for QA Owner Email
-QA_OWNER_EMAIL = input("Enter the QA Owner Email (leave blank if not applicable): ").strip()
+# Function to display and get QA Owner selection
+def select_qa_owner():
+    print("Select the QA Owner Email:")
+    print("1 - Alfredo Arias > email = AArias@ancestry.com")
+    print("2 - Santorino Levita > email = slevita.contractor@ancestry.com")
+    print("3 - Maitrey Patel > email = mpatel@ancestry.com")
+    print("0 - None (leave blank)")
+
+    while True:
+        selection = input("Enter the number corresponding to the QA Owner: ").strip()
+        if selection == '1':
+            return 'AArias@ancestry.com'
+        elif selection == '2':
+            return 'slevita.contractor@ancestry.com'
+        elif selection == '3':
+            return 'mpatel@ancestry.com'
+        elif selection == '0':
+            return ''
+        else:
+            print("Invalid selection, please choose a valid option.")
+
+# Get the QA Owner Email based on user selection
+QA_OWNER_EMAIL = select_qa_owner()
 
 # Convert input to boolean
 create_l1_deploy_ticket = input("Create L1 DEPLOY ticket? (yes/no): ").strip().lower() == 'yes'
