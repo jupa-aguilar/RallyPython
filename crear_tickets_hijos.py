@@ -145,7 +145,8 @@ ticket_data = {
         'Owner': owner_ref,
         'Tags': [{"_ref": tag_ref}] if create_l1_deploy_ticket else None,
         'c_Color': color_parent,
-        'Description': "PRE-DEPLOYMENT STEPS\n•\n\nPOST-DEPLOYMENT STEPS\n•"
+        # 'Description': "PRE-DEPLOYMENT STEPS\n•\n\nPOST-DEPLOYMENT STEPS\n•"
+        'Description': "<p><strong><em>PRE-DEPLOYMENT STEPS</em></strong></p><ul><li></li></ul><p><strong><em>POST-DEPLOYMENT STEPS</em></strong></p><ul><li></li></ul>"
     }
 }
 

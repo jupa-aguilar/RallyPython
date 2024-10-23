@@ -12,22 +12,22 @@ API_KEY = input("Please enter your Rally API Key: ")
 # Function to prompt for ticket IDs
 def get_ticket_ids():
     ticket_ids = []
-    mode = input("Would you like to enter ticket IDs as a comma-separated list or one by one? (Enter 'list' or 'one by one'): ").strip().lower()
- 
-    if mode == 'list':
+    mode = input("Would you like to enter ticket IDs as a list (0) or one by one (1)? Enter 0 or 1: ").strip()
+    
+    if mode == '0':
         ticket_ids_input = input("Enter the ticket IDs as a comma-separated list: ")
         ticket_ids = [ticket.strip() for ticket in ticket_ids_input.split(',')]
-    elif mode == 'one by one':
-        print("Enter the ticket IDs one by one. Type 'done' when you are finished:")
+    elif mode == '1':
+        print("Enter the ticket IDs one by one. Type 'd' when you are finished:")
         while True:
-            ticket_id = input("Enter ticket ID (or 'done' to finish): ").strip()
-            if ticket_id.lower() == 'done':
+            ticket_id = input("Enter ticket ID (or 'd' to finish): ").strip()
+            if ticket_id.lower() == 'd':
                 break
             ticket_ids.append(ticket_id)
     else:
         print("Invalid input. Please start again.")
         return get_ticket_ids()
- 
+
     return ticket_ids
  
 # Get the ticket IDs from user input
@@ -53,6 +53,17 @@ def get_next_monday():
     days_until_monday = (7 - today.weekday()) % 7
     next_monday = today + timedelta(days=days_until_monday)
     return next_monday
+
+# Function to get a valid day input from the user
+def get_day_input():
+    valid_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    
+    while True:
+        requested_day = input("Please enter a day (e.g., Monday, Tuesday, etc.): ").strip().lower()
+        if requested_day in valid_days:
+            return requested_day
+        else:
+            print("Invalid day entered. Please try again.")
  
 def get_specific_day(requested_day):
     days_of_week = {
@@ -64,25 +75,32 @@ def get_specific_day(requested_day):
         "saturday": 5,
         "sunday": 6
     }
- 
+
     today = datetime.now()
     requested_day = requested_day.lower()
- 
+
     if requested_day not in days_of_week:
         raise ValueError("Invalid day requested. Use: monday, tuesday, wednesday, thursday, friday, saturday, or sunday.")
-     
+    
     current_day = today.weekday()
     days_until_requested_day = (days_of_week[requested_day] - current_day + 7) % 7
+
+    # If today is the requested day, return the next occurrence (i.e., in 7 days)
+    if days_until_requested_day == 0:
+        days_until_requested_day = 7
+
     specific_day = today + timedelta(days=days_until_requested_day)
- 
+
     return specific_day
  
 # Function to get ticket details from Rally
 def get_ticket_details(rally, ticket_ids):
     ticket_details = []
     for ticket_id in ticket_ids:
-        ticket = rally.get('HierarchicalRequirement', query=f'FormattedID = "{ticket_id}"', instance=True)
-        if ticket:
+        response = rally.get('HierarchicalRequirement', fetch="FormattedID,Name,ObjectID", query=f'FormattedID = "{ticket_id}"')
+        
+        # Iterate over the response to extract details
+        for ticket in response:
             ticket_details.append({
                 'id': ticket.FormattedID,
                 'name': ticket.Name,
@@ -92,8 +110,10 @@ def get_ticket_details(rally, ticket_ids):
  
 # Configurable date
 # date = get_next_thursday()
+# Get the day from user input
+requested_day = get_day_input()
 # Get the next Wednesday
-date = get_specific_day("wednesday")
+date = get_specific_day(requested_day)
 date_str = date.strftime("%m-%d-%Y")
  
 # Function to get the name of the Release and the Iteration
@@ -101,8 +121,8 @@ def get_release_iteration(date):
     year = date.year
     quarter = (date.month - 1) // 3 + 1
     release = f"PI-{year}_Q{quarter}"
- 
-    # Find the corresponding iteration
+
+    # Update the Sprint calculation logic
     iteration_end_dates = {
         "Sprint_11_2024": datetime(2024, 6, 4),
         "Sprint_12_2024": datetime(2024, 6, 18),
@@ -119,10 +139,12 @@ def get_release_iteration(date):
         "Sprint_23_2024": datetime(2024, 11, 19),
         # Add more iterations here
     }
- 
-    iteration = min(iteration_end_dates, key=lambda k: abs(iteration_end_dates[k] - date))
- 
+
+    # Find the next Sprint that ends after the given date
+    iteration = min(iteration_end_dates, key=lambda k: (iteration_end_dates[k] - date).days if iteration_end_dates[k] >= date else float('inf'))
+
     return release, iteration
+
  
 # Get current Release and Iteration based on the date
 release_name, iteration_name = get_release_iteration(date)
@@ -324,6 +346,8 @@ try:
     user_story_2 = rally.put('HierarchicalRequirement', user_story_2_data)
     if user_story_2:
         print(f"Second User Story created with ID: {user_story_2.ObjectID}")
+        # Construct the URL for the User Story
+        user_story_2_url = f'https://rally1.rallydev.com/#/detail/userstory/{user_story_2.ObjectID}'
     else:
         print("Error: Could not create the second User Story.")
 except Exception as e:
@@ -399,7 +423,7 @@ for ticket in ticket_details:
 # Now replace the placeholder in the message with the actual URL
 message = f"""
 *L1 Deployment plan for this Thursday*
-<{user_story_1_url}|{user_story_1.FormattedID}>: [{date_str}] Overarching L1 Deployment Salesforce Release
+<{user_story_2_url}|{user_story_2.FormattedID}>: [{date_str}] Overarching L1 Deployment Salesforce Release
 *Checklist*: <https://example.com/checklist|{date_str} Deployment Checklist>
 *PR*: {iteration_name}_{date.month}_{date.day} (TBD)
 *PAAP*: TBD
