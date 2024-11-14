@@ -41,6 +41,9 @@ def get_release_iteration(date):
         "Sprint_21_2024": datetime(2024, 10, 22),
         "Sprint_22_2024": datetime(2024, 11, 5),
         "Sprint_23_2024": datetime(2024, 11, 19),
+        "Sprint_24_2024": datetime(2024, 12, 3),
+        "Sprint_25_2024": datetime(2024, 12, 17),
+        "Sprint_26_2024": datetime(2024, 12, 31),
     }
 
     # Find the correct iteration where the date falls in
@@ -146,6 +149,10 @@ try:
                 'Iteration': {'_ref': new_iteration._ref}
             }
 
+            # Replace the date in the Name for all successors
+            updated_name = re.sub(r'\[\d{2}-\d{2}-\d{4}\]', f"[{new_date_str}]", successor.Name)
+            update_data['Name'] = updated_name
+
             # If the successor has 'Overarching' in the name, update the description with replaced dates
             if 'Overarching' in successor.Name:
                 # Replace all dates in mm/dd/yyyy format with the new date
@@ -154,8 +161,10 @@ try:
 
             print(f"Updating successor {successor.FormattedID} with data: {update_data}")
             rally.update('HierarchicalRequirement', update_data)
-            print(f"Updated successor ticket {successor.FormattedID} with new release and iteration.")
+            print(f"Updated successor ticket {successor.FormattedID} with new name, release, and iteration.")
     else:
         print("No successors found for the main ticket.")
 except Exception as e:
     print(f"Error updating successor tickets: {e}")
+
+
